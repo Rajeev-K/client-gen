@@ -15,14 +15,11 @@ async function main() {
             spec = await fetch(pathOrUrl).then(res => res.json());
         }
         else {
-            // Resolving the full path to the file
-            const fullPath = resolve(join(Deno.cwd(), pathOrUrl));
-
             // Reading the file content as text
-            const fileContent = await Deno.readTextFile(fullPath);
+            const fileContent = await Deno.readTextFile(pathOrUrl);
 
             // Parsing the file content as JSON
-            const spec = JSON.parse(fileContent);            
+            spec = JSON.parse(fileContent);
         }
         generateTypeScript(spec);
     }
@@ -31,7 +28,7 @@ async function main() {
     }
 }
 
-function generateTypeScript(spec): void {
+function generateTypeScript(spec: any): void {
 }
 
 main();
