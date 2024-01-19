@@ -1,5 +1,7 @@
 /// <reference path="./lib.deno.d.ts" />
 
+import { OpenAPIObject, OperationObject, SchemaObject } from "./openapi.d.ts";
+
 async function main() {
     const pathOrUrl = Deno.args[0];
     if (!pathOrUrl) {
@@ -8,7 +10,7 @@ async function main() {
     }
 
     try {
-        let spec: OpenAPI;
+        let spec: OpenAPIObject;
         if (pathOrUrl.startsWith("http")) {
             spec = await fetch(pathOrUrl).then(res => res.json());
         }
@@ -23,11 +25,34 @@ async function main() {
     }
 }
 
-function generateTypeScript(spec: OpenAPI): void {
+function generateTypeScript(spec: OpenAPIObject): void {
+    generateMethods(spec);
     generateDataModels(spec);
 }
 
-function generateDataModels(spec: OpenAPI): void {
+function generateMethods(spec: OpenAPIObject): void {
+    for (const path in spec.paths) {
+        const pathItemObject = spec.paths[path];
+        for (const method in pathItemObject) {
+            if (method === "get" || method === "post" || method === "put" || method === "delete") {
+                let functionName = path.split('/').pop()!;
+                if (!functionName.toLowerCase().startsWith(method))
+                    functionName = method + functionName;
+                const operationObject = pathItemObject[method]!;
+                const returnTypeSpec = getReturnTypeSpec(operationObject);
+                console.log(`function ${functionName}: ${returnTypeSpec} {`);
+                console.log('}');
+                console.log();
+            }
+        }
+    }
+}
+
+function getReturnTypeSpec(operationObject: OperationObject) {
+    return "any";
+}
+
+function generateDataModels(spec: OpenAPIObject): void {
     const schemas = spec.components?.schemas;
     if (!schemas)
         return;
@@ -35,17 +60,17 @@ function generateDataModels(spec: OpenAPI): void {
         const schema = schemas[schemaName];
         switch (schema.type) {
             case "object":
-                generateObject(spec, schemaName, schema);
+                generateObject(schemaName, schema);
                 break;
             case "string":
                 if (schema.enum)
-                    generateEnum(spec, schemaName, schema);
+                    generateEnum(schemaName, schema);
                 break;
         }
     }
 }
 
-function generateObject(spec: OpenAPI, schemaName: string, schema: Schema): void {
+function generateObject(schemaName: string, schema: SchemaObject): void {
     console.log(`interface ${schemaName} {`);
     const propertyNames = Object.keys(schema.properties);
     for (let i = 0; i < propertyNames.length; i++) {
@@ -59,11 +84,11 @@ function generateObject(spec: OpenAPI, schemaName: string, schema: Schema): void
             else if (property.items.type)
                 elementType = property.items.type;
             else if (property.items.$ref)
-                elementType = property.items.$ref.split('/').pop() as string;
+                elementType = property.items.$ref.split('/').pop()!;
             typeSpec = `${elementType}[]`;
         }
         else if (property.$ref) {
-            typeSpec = property.$ref.split('/').pop() as string;
+            typeSpec = property.$ref.split('/').pop()!;
         }
         else {
             typeSpec = property.type;
@@ -74,7 +99,7 @@ function generateObject(spec: OpenAPI, schemaName: string, schema: Schema): void
     console.log();
 }
 
-function generateEnum(spec: OpenAPI, schemaName: string, schema: Schema): void {
+function generateEnum(schemaName: string, schema: SchemaObject): void {
     console.log(`enum ${schemaName} {`);
     for (let i = 0; i < schema.enum.length; i++) {
         const item = schema.enum[i];
