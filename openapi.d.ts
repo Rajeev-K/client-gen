@@ -20,6 +20,7 @@ interface Path {
 interface Schema {
     type: string;
     enum: string[];
+    properties: Properties;
 }
 
 interface Parameter {
@@ -28,7 +29,9 @@ interface Parameter {
 interface Property {
     type: string;
     nullable: boolean;
+    "$ref": string;
     items: { // Must be present if type === "array"
+        "type": string;
         "$ref": string;
     }
 }

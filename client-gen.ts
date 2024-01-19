@@ -31,11 +31,11 @@ function generateDataModels(spec: OpenAPI): void {
     const schemas = spec.components?.schemas;
     if (!schemas)
         return;
-    for (let schemaName in schemas) {
+    for (const schemaName in schemas) {
         const schema = schemas[schemaName];
         switch (schema.type) {
             case "object":
-                generateObject(spec, schema);
+                generateObject(spec, schemaName, schema);
                 break;
             case "string":
                 if (schema.enum)
@@ -45,14 +45,41 @@ function generateDataModels(spec: OpenAPI): void {
     }
 }
 
-function generateObject(spec: OpenAPI, schema: Schema): void {
+function generateObject(spec: OpenAPI, schemaName: string, schema: Schema): void {
+    console.log(`interface ${schemaName} {`);
+    const propertyNames = Object.keys(schema.properties);
+    for (let i = 0; i < propertyNames.length; i++) {
+        const propertyName = propertyNames[i];
+        const property = schema.properties[propertyName];
+        let typeSpec: string;
+        if (property.type === "array") {
+            let elementType = "any";
+            if (property.items.type === "array") // array of arrays
+                elementType = "any[]"; // todo
+            else if (property.items.type)
+                elementType = property.items.type;
+            else if (property.items.$ref)
+                elementType = property.items.$ref.split('/').pop() as string;
+            typeSpec = `${elementType}[]`;
+        }
+        else if (property.$ref) {
+            typeSpec = property.$ref.split('/').pop() as string;
+        }
+        else {
+            typeSpec = property.type;
+        }
+        console.log(`   ${propertyName}?: ${typeSpec};`);
+    }
+    console.log('}');
+    console.log();
 }
 
 function generateEnum(spec: OpenAPI, schemaName: string, schema: Schema): void {
     console.log(`enum ${schemaName} {`);
     for (let i = 0; i < schema.enum.length; i++) {
         const item = schema.enum[i];
-        console.log(`   ${item}${i < schema.enum.length - 1 ? ',' : ''}`);
+        const isLast = i === schema.enum.length - 1;
+        console.log(`   ${item} = "${item}"${isLast ? '' : ','}`);
     }
     console.log('}');
     console.log();
