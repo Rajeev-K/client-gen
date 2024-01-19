@@ -1,6 +1,14 @@
 /// <reference path="./lib.deno.d.ts" />
 
-import { OpenAPIObject, OperationObject, SchemaObject, ResponseObject, RequestBodyObject, ParameterObject } from "./openapi.d.ts";
+import {
+    OpenAPIObject,
+    OperationObject,
+    SchemaObject,
+    ResponseObject,
+    RequestBodyObject,
+    ParameterObject
+} from "./openapi.d.ts";
+import { PathItemObject } from "./openapi.d.ts";
 
 async function main() {
     const pathOrUrl = Deno.args[0];
@@ -38,27 +46,29 @@ function generateFunctions(spec: OpenAPIObject): void {
         for (const method in pathItemObject) {
             if (method === "get" || method === "post" ||
                 method === "put" || method === "patch" || method === "delete") {
-                let functionName = path.split('/').pop()!;
-                if (method === "get" || functionName.toLowerCase().startsWith(method))
-                    functionName = toCamelCase(functionName);
-                else
-                    functionName = method + functionName;
-                const operation = pathItemObject[method]!;
-                const {paramsSpec, queryParams, bodyObjectParamName} = generateFunctionParameters(operation);
-                const returnTypeSpec = getReturnTypeSpec(operation);
-                const bodyParam = bodyObjectParamName ? `, ${bodyObjectParamName}` : '';
-                const url = "`" + convertToTemplateLiterals(path) + "`";
-                console.log(`export async function ${functionName}(${paramsSpec}): Promise<${returnTypeSpec}> {`);
-                console.log(`   return await performFetch(${url}, "${method.toUpperCase()}"${bodyParam});`)
-                console.log('}');
-                console.log();
+                generateFunction(path, method, pathItemObject[method]!)
             }
         }
     }
 }
 
-function generateFunctionParameters(operation: OperationObject):
-                     {queryParams: string, paramsSpec: string, bodyObjectParamName: string} {
+function generateFunction(path: string, method: string, operation: OperationObject): void {
+    let functionName = path.split('/').pop()!;
+    if (method === "get" || functionName.toLowerCase().startsWith(method))
+        functionName = toCamelCase(functionName);
+    else
+        functionName = method + functionName;
+    const {paramsSpec, queryParams, bodyObjectParamName} = generateFunctionParameters(operation);
+    const returnTypeSpec = getReturnTypeSpec(operation);
+    const bodyParam = bodyObjectParamName ? `, ${bodyObjectParamName}` : '';
+    const url = "`" + convertToTemplateLiterals(path) + "`";
+    console.log(`export async function ${functionName}(${paramsSpec}): Promise<${returnTypeSpec}> {`);
+    console.log(`   return await performFetch(${url}, "${method.toUpperCase()}"${bodyParam});`)
+    console.log('}');
+    console.log();
+}
+
+function generateFunctionParameters(operation: OperationObject): ParameterMetadata {
     const functionParams = [];
     if (operation.parameters) {
         for (const parameter of operation.parameters) {
@@ -164,6 +174,12 @@ function toCamelCase(str: string): string {
 
 function convertToTemplateLiterals(str: string): string {
     return str.replace(/{(\w+)}/g, '${$1}');
+}
+
+interface ParameterMetadata {
+    queryParams: string;
+    paramsSpec: string;
+    bodyObjectParamName: string;
 }
 
 main();
