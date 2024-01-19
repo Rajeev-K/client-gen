@@ -46,8 +46,8 @@ function generateMethods(spec: OpenAPIObject): void {
                 let paramsSpec = '';
                 let bodyObjectParamName = '';
                 if (requestBody) {
-                    const schema = requestBody.content["application/json"].schema as SchemaObject;
-                    const bodyObjectType = getTypeSpec(schema);
+                    const schema = requestBody.content["application/json"]?.schema as SchemaObject;
+                    const bodyObjectType = schema ? getTypeSpec(schema) : "any";
                     bodyObjectParamName = toCamelCase(bodyObjectType);
                     paramsSpec = `${bodyObjectParamName}: ${bodyObjectType}`;
                 }
@@ -62,9 +62,11 @@ function generateMethods(spec: OpenAPIObject): void {
     }
 }
 
-function getReturnTypeSpec(operationObject: OperationObject) {
+function getReturnTypeSpec(operationObject: OperationObject): string {
     const response = operationObject.responses["200"] as ResponseObject;
     const content = response.content!;
+    if (!content)
+        return "void";
     const result = content["application/json"];
     return getTypeSpec(result.schema!);
 }
@@ -89,12 +91,15 @@ function generateDataModels(spec: OpenAPIObject): void {
 
 function generateObject(schemaName: string, schema: SchemaObject): void {
     console.log(`export interface ${schemaName} {`);
-    const propertyNames = Object.keys(schema.properties!);
-    for (let i = 0; i < propertyNames.length; i++) {
-        const propertyName = propertyNames[i];
-        const property = schema.properties![propertyName] as SchemaObject;
-        const typeSpec = getTypeSpec(property);
-        console.log(`   ${propertyName}?: ${typeSpec};`);
+    const properties = schema.properties! as SchemaObject;
+    if (properties) {
+        const propertyNames = Object.keys(properties);
+        for (let i = 0; i < propertyNames.length; i++) {
+            const propertyName = propertyNames[i];
+            const property = schema.properties![propertyName] as SchemaObject;
+            const typeSpec = getTypeSpec(property);
+            console.log(`   ${propertyName}?: ${typeSpec};`);
+        }
     }
     console.log('}');
     console.log();
