@@ -1,2 +1,2 @@
-deno run --allow-read client-gen.ts %1
+deno run --allow-read --allow-net client-gen.ts %1
 

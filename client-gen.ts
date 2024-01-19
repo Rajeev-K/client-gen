@@ -26,7 +26,7 @@ async function main() {
 }
 
 function generateTypeScript(spec: OpenAPIObject): void {
-    console.log('import { performFetch } from "./RestClient";');
+    console.log('import { performFetch } from "./FetchWrapper";');
     console.log();
     generateMethods(spec);
     generateDataModels(spec);
