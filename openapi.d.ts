@@ -12,13 +12,23 @@ interface OpenAPI {
 }
 
 type Schemas = {[schemaName: string]: Schema};
+type Properties = {[propertyName: string]: Property};
 
 interface Path {
 }
 
 interface Schema {
     type: string;
+    enum: string[];
 }
 
 interface Parameter {
+}
+
+interface Property {
+    type: string;
+    nullable: boolean;
+    items: { // Must be present if type === "array"
+        "$ref": string;
+    }
 }
