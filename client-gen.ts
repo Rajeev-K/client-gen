@@ -1,6 +1,6 @@
 /// <reference path="./lib.deno.d.ts" />
 
-import { OpenAPIObject, OperationObject, SchemaObject, ResponseObject, RequestBodyObject } from "./openapi.d.ts";
+import { OpenAPIObject, OperationObject, SchemaObject, ResponseObject, RequestBodyObject, ParameterObject } from "./openapi.d.ts";
 
 async function main() {
     const pathOrUrl = Deno.args[0];
@@ -28,11 +28,11 @@ async function main() {
 function generateTypeScript(spec: OpenAPIObject): void {
     console.log('import { performFetch } from "./FetchWrapper";');
     console.log();
-    generateMethods(spec);
+    generateFunctions(spec);
     generateDataModels(spec);
 }
 
-function generateMethods(spec: OpenAPIObject): void {
+function generateFunctions(spec: OpenAPIObject): void {
     for (const path in spec.paths) {
         const pathItemObject = spec.paths[path];
         for (const method in pathItemObject) {
@@ -43,26 +43,39 @@ function generateMethods(spec: OpenAPIObject): void {
                     functionName = toCamelCase(functionName);
                 else
                     functionName = method + functionName;
-                const operationObject = pathItemObject[method]!;
-                const requestBody = operationObject.requestBody as RequestBodyObject;
-                let paramsSpec = '';
-                // todo: path and query parameters
-                let bodyObjectParamName = '';
-                if (requestBody) {
-                    const schema = requestBody.content["application/json"]?.schema as SchemaObject;
-                    const bodyObjectType = schema ? getTypeSpec(schema) : "any";
-                    bodyObjectParamName = toCamelCase(bodyObjectType);
-                    paramsSpec = `${bodyObjectParamName}: ${bodyObjectType}`;
-                }
-                const returnTypeSpec = getReturnTypeSpec(operationObject);
+                const operation = pathItemObject[method]!;
+                const {paramsSpec, queryParams, bodyObjectParamName} = generateFunctionParameters(operation);
+                const returnTypeSpec = getReturnTypeSpec(operation);
                 const bodyParam = bodyObjectParamName ? `, ${bodyObjectParamName}` : '';
+                const url = "`" + convertToTemplateLiterals(path) + "`";
                 console.log(`export async function ${functionName}(${paramsSpec}): Promise<${returnTypeSpec}> {`);
-                console.log(`   return await performFetch("${path}", "${method.toUpperCase()}"${bodyParam});`)
+                console.log(`   return await performFetch(${url}, "${method.toUpperCase()}"${bodyParam});`)
                 console.log('}');
                 console.log();
             }
         }
     }
+}
+
+function generateFunctionParameters(operation: OperationObject):
+                     {queryParams: string, paramsSpec: string, bodyObjectParamName: string} {
+    const functionParams = [];
+    if (operation.parameters) {
+        for (const parameter of operation.parameters) {
+            const param = parameter as ParameterObject;
+            functionParams.push(`${param.name}: ${getTypeSpec(param.schema as SchemaObject)}`);
+        }
+    }
+    const requestBody = operation.requestBody as RequestBodyObject;
+    let bodyObjectParamName = '';
+    if (requestBody) {
+        const schema = requestBody.content["application/json"]?.schema as SchemaObject;
+        const bodyObjectType = schema ? getTypeSpec(schema) : "any";
+        bodyObjectParamName = toCamelCase(bodyObjectType);
+        functionParams.push(`${bodyObjectParamName}: ${bodyObjectType}`);
+    }
+    const queryParams = "";
+    return { queryParams, paramsSpec: functionParams.join(', '), bodyObjectParamName};
 }
 
 function getReturnTypeSpec(operationObject: OperationObject): string {
@@ -147,6 +160,10 @@ function generateEnum(schemaName: string, schema: SchemaObject): void {
 function toCamelCase(str: string): string {
     str = str.replace(/[^a-zA-Z0-9]/g, '');
     return str.charAt(0).toLocaleLowerCase() + str.slice(1);
+}
+
+function convertToTemplateLiterals(str: string): string {
+    return str.replace(/{(\w+)}/g, '${$1}');
 }
 
 main();
