@@ -1,6 +1,6 @@
 /// <reference path="./lib.deno.d.ts" />
 
-import { OpenAPIObject, OperationObject, SchemaObject, ResponseObject } from "./openapi.d.ts";
+import { OpenAPIObject, OperationObject, SchemaObject, ResponseObject, RequestBodyObject } from "./openapi.d.ts";
 
 async function main() {
     const pathOrUrl = Deno.args[0];
@@ -26,6 +26,8 @@ async function main() {
 }
 
 function generateTypeScript(spec: OpenAPIObject): void {
+    console.log('import { performFetch } from "./RestClient";');
+    console.log();
     generateMethods(spec);
     generateDataModels(spec);
 }
@@ -34,13 +36,25 @@ function generateMethods(spec: OpenAPIObject): void {
     for (const path in spec.paths) {
         const pathItemObject = spec.paths[path];
         for (const method in pathItemObject) {
-            if (method === "get" || method === "post" || method === "put" || method === "delete") {
+            if (method === "get" || method === "post" ||
+                method === "put" || method === "patch" || method === "delete") {
                 let functionName = path.split('/').pop()!;
                 if (!functionName.toLowerCase().startsWith(method))
                     functionName = method + functionName;
                 const operationObject = pathItemObject[method]!;
+                const requestBody = operationObject.requestBody as RequestBodyObject;
+                let paramsSpec = '';
+                let bodyObjectParamName = '';
+                if (requestBody) {
+                    const schema = requestBody.content["application/json"].schema as SchemaObject;
+                    const bodyObjectType = getTypeSpec(schema);
+                    bodyObjectParamName = toCamelCase(bodyObjectType);
+                    paramsSpec = `${bodyObjectParamName}: ${bodyObjectType}`;
+                }
                 const returnTypeSpec = getReturnTypeSpec(operationObject);
-                console.log(`function ${functionName}: ${returnTypeSpec} {`);
+                const bodyParam = bodyObjectParamName ? `, ${bodyObjectParamName}` : '';
+                console.log(`export async function ${functionName}(${paramsSpec}): Promise<${returnTypeSpec}> {`);
+                console.log(`   return await performFetch("${path}", "${method.toUpperCase()}"${bodyParam});`)
                 console.log('}');
                 console.log();
             }
@@ -74,7 +88,7 @@ function generateDataModels(spec: OpenAPIObject): void {
 }
 
 function generateObject(schemaName: string, schema: SchemaObject): void {
-    console.log(`interface ${schemaName} {`);
+    console.log(`export interface ${schemaName} {`);
     const propertyNames = Object.keys(schema.properties!);
     for (let i = 0; i < propertyNames.length; i++) {
         const propertyName = propertyNames[i];
@@ -107,7 +121,7 @@ function getTypeSpec(schema: SchemaObject): string {
 }
 
 function generateEnum(schemaName: string, schema: SchemaObject): void {
-    console.log(`enum ${schemaName} {`);
+    console.log(`export enum ${schemaName} {`);
     for (let i = 0; i < schema.enum!.length; i++) {
         const item = schema.enum![i];
         const isLast = i === schema.enum!.length - 1;
@@ -115,6 +129,10 @@ function generateEnum(schemaName: string, schema: SchemaObject): void {
     }
     console.log('}');
     console.log();
+}
+
+function toCamelCase(str: string): string {
+    return str.charAt(0).toLocaleLowerCase() + str.slice(1);
 }
 
 main();
