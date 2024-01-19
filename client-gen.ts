@@ -39,11 +39,14 @@ function generateMethods(spec: OpenAPIObject): void {
             if (method === "get" || method === "post" ||
                 method === "put" || method === "patch" || method === "delete") {
                 let functionName = path.split('/').pop()!;
-                if (!functionName.toLowerCase().startsWith(method))
+                if (method === "get" || functionName.toLowerCase().startsWith(method))
+                    functionName = toCamelCase(functionName);
+                else
                     functionName = method + functionName;
                 const operationObject = pathItemObject[method]!;
                 const requestBody = operationObject.requestBody as RequestBodyObject;
                 let paramsSpec = '';
+                // todo: path and query parameters
                 let bodyObjectParamName = '';
                 if (requestBody) {
                     const schema = requestBody.content["application/json"]?.schema as SchemaObject;
@@ -142,6 +145,7 @@ function generateEnum(schemaName: string, schema: SchemaObject): void {
 }
 
 function toCamelCase(str: string): string {
+    str = str.replace(/[^a-zA-Z0-9]/g, '');
     return str.charAt(0).toLocaleLowerCase() + str.slice(1);
 }
 
