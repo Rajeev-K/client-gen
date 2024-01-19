@@ -3,22 +3,19 @@
 import { resolve, join } from "https://deno.land/std@0.212.0/path/mod.ts";
 
 async function main() {
-    const pathOrUrl = Deno.args[0]; // Get the OpenAPI spec URL from command line arguments
+    const pathOrUrl = Deno.args[0];
     if (!pathOrUrl) {
         console.error("Please provide an OpenAPI spec path or URL.");
         Deno.exit(1);
     }
 
     try {
-        let spec: any;
+        let spec: OpenAPI;
         if (pathOrUrl.startsWith("http")) {
             spec = await fetch(pathOrUrl).then(res => res.json());
         }
         else {
-            // Reading the file content as text
             const fileContent = await Deno.readTextFile(pathOrUrl);
-
-            // Parsing the file content as JSON
             spec = JSON.parse(fileContent);
         }
         generateTypeScript(spec);
@@ -28,7 +25,14 @@ async function main() {
     }
 }
 
-function generateTypeScript(spec: any): void {
+function generateTypeScript(spec: OpenAPI): void {
+    generateDataModels(spec.components?.schemas)
+}
+
+function generateDataModels(schemas: Schemas): void {
+    for (let schema in schemas) {
+        console.log(schema);
+    }
 }
 
 main();
