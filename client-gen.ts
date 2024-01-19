@@ -111,6 +111,8 @@ function getTypeSpec(schema: SchemaObject): string {
         const items = schema.items as SchemaObject;
         if (items.type === "array") // array of arrays
             elementType = "any[]"; // todo
+        else if (items.type === "integer")
+            elementType = "number";
         else if (items.type)
             elementType = items.type;
         else if (items.$ref)
@@ -119,6 +121,9 @@ function getTypeSpec(schema: SchemaObject): string {
     }
     else if (schema.$ref) {
         return schema.$ref.split('/').pop()!;
+    }
+    else if (schema.type === "integer") {
+        return "number";
     }
     else {
         return schema.type!;
