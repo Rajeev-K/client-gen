@@ -233,6 +233,7 @@ export interface OpenAPIObject {
     minProperties?: number;
     required?: string[];
     enum?: any[];
+    $ref?: string;
   }
   
   export type SchemasObject = Record<string, SchemaObject>;

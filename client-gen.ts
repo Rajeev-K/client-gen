@@ -1,6 +1,6 @@
 /// <reference path="./lib.deno.d.ts" />
 
-import { OpenAPIObject, OperationObject, SchemaObject } from "./openapi.d.ts";
+import { OpenAPIObject, OperationObject, SchemaObject, ResponseObject } from "./openapi.d.ts";
 
 async function main() {
     const pathOrUrl = Deno.args[0];
@@ -49,7 +49,10 @@ function generateMethods(spec: OpenAPIObject): void {
 }
 
 function getReturnTypeSpec(operationObject: OperationObject) {
-    return "any";
+    const response = operationObject.responses["200"] as ResponseObject;
+    const content = response.content!;
+    const result = content["application/json"];
+    return getTypeSpec(result.schema!);
 }
 
 function generateDataModels(spec: OpenAPIObject): void {
@@ -57,7 +60,7 @@ function generateDataModels(spec: OpenAPIObject): void {
     if (!schemas)
         return;
     for (const schemaName in schemas) {
-        const schema = schemas[schemaName];
+        const schema = schemas[schemaName] as SchemaObject;
         switch (schema.type) {
             case "object":
                 generateObject(schemaName, schema);
@@ -72,38 +75,42 @@ function generateDataModels(spec: OpenAPIObject): void {
 
 function generateObject(schemaName: string, schema: SchemaObject): void {
     console.log(`interface ${schemaName} {`);
-    const propertyNames = Object.keys(schema.properties);
+    const propertyNames = Object.keys(schema.properties!);
     for (let i = 0; i < propertyNames.length; i++) {
         const propertyName = propertyNames[i];
-        const property = schema.properties[propertyName];
-        let typeSpec: string;
-        if (property.type === "array") {
-            let elementType = "any";
-            if (property.items.type === "array") // array of arrays
-                elementType = "any[]"; // todo
-            else if (property.items.type)
-                elementType = property.items.type;
-            else if (property.items.$ref)
-                elementType = property.items.$ref.split('/').pop()!;
-            typeSpec = `${elementType}[]`;
-        }
-        else if (property.$ref) {
-            typeSpec = property.$ref.split('/').pop()!;
-        }
-        else {
-            typeSpec = property.type;
-        }
+        const property = schema.properties![propertyName] as SchemaObject;
+        const typeSpec = getTypeSpec(property);
         console.log(`   ${propertyName}?: ${typeSpec};`);
     }
     console.log('}');
     console.log();
 }
 
+function getTypeSpec(schema: SchemaObject): string {
+    if (schema.type === "array") {
+        let elementType = "any";
+        const items = schema.items as SchemaObject;
+        if (items.type === "array") // array of arrays
+            elementType = "any[]"; // todo
+        else if (items.type)
+            elementType = items.type;
+        else if (items.$ref)
+            elementType = items.$ref.split('/').pop()!;
+        return `${elementType}[]`;
+    }
+    else if (schema.$ref) {
+        return schema.$ref.split('/').pop()!;
+    }
+    else {
+        return schema.type!;
+    }
+}
+
 function generateEnum(schemaName: string, schema: SchemaObject): void {
     console.log(`enum ${schemaName} {`);
-    for (let i = 0; i < schema.enum.length; i++) {
-        const item = schema.enum[i];
-        const isLast = i === schema.enum.length - 1;
+    for (let i = 0; i < schema.enum!.length; i++) {
+        const item = schema.enum![i];
+        const isLast = i === schema.enum!.length - 1;
         console.log(`   ${item} = "${item}"${isLast ? '' : ','}`);
     }
     console.log('}');
