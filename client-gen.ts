@@ -8,7 +8,6 @@ import {
     RequestBodyObject,
     ParameterObject
 } from "./openapi.d.ts";
-import { PathItemObject } from "./openapi.d.ts";
 
 async function main() {
     const pathOrUrl = Deno.args[0];
@@ -36,6 +35,17 @@ async function main() {
 function generateTypeScript(spec: OpenAPIObject): void {
     console.log('import { performFetch } from "./FetchWrapper";');
     console.log();
+    console.log("function queryParams(dict: any): string {");
+    console.log("    const items = [];");
+    console.log("    for (let key in dict) {");
+    console.log("        const value = dict[key];");
+    console.log("        if (value != null)"); // Null and undefined are skipped, but 0, false, "" are allowed
+    console.log("            items.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));");
+    console.log("    }");
+    console.log("    return items.join('&');");
+    console.log("}");
+    console.log();
+
     generateFunctions(spec);
     generateDataModels(spec);
 }
@@ -58,10 +68,12 @@ function generateFunction(path: string, method: string, operation: OperationObje
         functionName = toCamelCase(functionName);
     else
         functionName = method + functionName;
-    const {paramsSpec, queryParams, bodyObjectParamName} = generateFunctionParameters(operation);
+    const {paramsSpec, queryParamsSpec, bodyObjectParamName} = generateFunctionParameters(operation);
     const returnTypeSpec = getReturnTypeSpec(operation);
     const bodyParam = bodyObjectParamName ? `, ${bodyObjectParamName}` : '';
-    const url = "`" + convertToTemplateLiterals(path) + "`";
+    let url = "`" + convertToTemplateLiterals(path) + "`";
+    if (queryParamsSpec)
+        url += ` + '?' + queryParams({${queryParamsSpec}})`;
     console.log(`export async function ${functionName}(${paramsSpec}): Promise<${returnTypeSpec}> {`);
     console.log(`   return await performFetch(${url}, "${method.toUpperCase()}"${bodyParam});`)
     console.log('}');
@@ -70,10 +82,14 @@ function generateFunction(path: string, method: string, operation: OperationObje
 
 function generateFunctionParameters(operation: OperationObject): ParameterMetadata {
     const functionParams = [];
+    const queryParams = [];
     if (operation.parameters) {
         for (const parameter of operation.parameters) {
             const param = parameter as ParameterObject;
             functionParams.push(`${param.name}: ${getTypeSpec(param.schema as SchemaObject)}`);
+            if (param.in === "query") {
+                queryParams.push(`${param.name}: ${param.name}`);
+            }
         }
     }
     const requestBody = operation.requestBody as RequestBodyObject;
@@ -81,11 +97,10 @@ function generateFunctionParameters(operation: OperationObject): ParameterMetada
     if (requestBody) {
         const schema = requestBody.content["application/json"]?.schema as SchemaObject;
         const bodyObjectType = schema ? getTypeSpec(schema) : "any";
-        bodyObjectParamName = toCamelCase(bodyObjectType);
+        bodyObjectParamName = bodyObjectType === "string" ? "body" : toCamelCase(bodyObjectType);
         functionParams.push(`${bodyObjectParamName}: ${bodyObjectType}`);
     }
-    const queryParams = "";
-    return { queryParams, paramsSpec: functionParams.join(', '), bodyObjectParamName};
+    return { queryParamsSpec: queryParams.join(', '), paramsSpec: functionParams.join(', '), bodyObjectParamName};
 }
 
 function getReturnTypeSpec(operationObject: OperationObject): string {
@@ -177,7 +192,7 @@ function convertToTemplateLiterals(str: string): string {
 }
 
 interface ParameterMetadata {
-    queryParams: string;
+    queryParamsSpec: string;
     paramsSpec: string;
     bodyObjectParamName: string;
 }
